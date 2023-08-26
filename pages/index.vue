@@ -1,40 +1,52 @@
 <script setup lang="ts">
-    import { Movies, Movie } from '~/types/MovieType';
+import { Movie, Movies as MoviesResponse } from '../types/MovieType';
 
-    const runtimeConfig=useRuntimeConfig()
+    const runtimeConfig = useRuntimeConfig()
 
-    const { data: movies } = await useFetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${runtimeConfig.public.MOVIES_KEY}&language=en-US&page=1`, {
-        transform: (data: Movies): Movie[] => data.results
+    let searchInput = ref("")
+
+
+    function clearInput() {
+        searchInput.value = ""
+    }
+    const { data: movies, refresh: refetchAllMovies } = await useFetch(`https://api.themoviedb.org/3/movie/now_playing`, {
+        query: {"api_key": runtimeConfig.public.MOVIES_KEY, language: 'en-US', page: 1},
+        transform: (data: MoviesResponse): Movie[] => data.results.map(movie => ({
+            ...movie,
+            release_date: new Date(movie.release_date).toLocaleString('en-GB', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            })
+        })).sort((a,b) => b.vote_average - a.vote_average),
     })
+
+    const { data: searchedMovies, refresh: refetchSearchedMovies} = await useFetch(`https://api.themoviedb.org/3/search/movie`, {
+    query: { "api_key": runtimeConfig.public.MOVIES_KEY, language: 'en-US', page: 1, query: computed(()=> searchInput.value) },
+    transform: (data: MoviesResponse): Movie[] => data.results.map(movie => ({
+        ...movie,
+        release_date: new Date(movie.release_date).toLocaleString('en-GB', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        })
+    })).sort((a, b) => b.vote_average - a.vote_average),
+})
+
+watch(searchInput, async(newValue) => {
+    if (newValue === "") refetchAllMovies()
+    else {
+        await refetchSearchedMovies()
+    }})
 </script>
 
 <template>
     <div>
-        <!-- Hero -->
         <Hero/>
-
-        <!-- Movie List -->
-        <div id="movie-grid" class="grid gap-x-8 gap-y-16 lg:grid-cols-4 my-16 max-w-screen-xl mx-auto">
-            <div v-for="(movie) in movies" :key="movie.id" class="relative group flex flex-col">
-                <div class="relative overflow-hidden">
-                    <img class="w-full h-full" :src="`https://image.tmdb.org/t/p/w500/${movie.poster_path}`" alt="movie image">
-                    <p class="absolute left-0 shadow-md top-0 grid  place-content-center w-[40px] h-[40px] bg-[#c92502] text-white rounded-br-xl">{{ movie.vote_average }}</p>
-                    <p class="leading-[1.5] text-justify transition-transform translate-y-[100%] group-hover:translate-y-0 bg-[#c92602e6] p-3 text-white absolute bottom-0 bg-[rgba(201, 38, 2, 0.9)]">{{ movie.overview }}</p>
-                </div>
-                <div class="space-y-2 mt-auto">
-                    <p class="text-white text-[20px]">{{ movie.title.slice(0,25) }} <span v-if="movie.title.length > 25">...</span></p>
-                    <p class="text-[#c9c9c9]">
-                        Released: {{ 
-                            new Date(movie.release_date).toLocaleString('en-GB', {
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric'
-                            })
-                        }} 
-                    </p>
-                    <NuxtLink class="button button-light" :to="`/movies/${movie.id}`">Get more info</NuxtLink>
-                </div>
-            </div>
+        <div class="flex py-8 px-4 max-w-screen-2xl mx-auto">
+            <input class="max-w-[350px] w-full py-3 px-2 text-[14px] border-none focus:outline-none" type="text" name="" id="" v-model="searchInput">
+            <button @click="clearInput()" v-show="searchInput !== ''" class="button" >Clear Search</button>
         </div>
+        <Movies id="movies-grid" :movies="searchInput === '' ? movies : searchedMovies" />
     </div>
 </template>

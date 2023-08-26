@@ -1,5 +1,3 @@
-
-
 <template>
     <div class="h-[500px] md:h-[400px] relative">
         <img class="w-full h-full object-cover" src="../assets/images/movieHero.jpg" alt="hero image">
